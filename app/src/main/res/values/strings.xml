@@ -1,0 +1,31 @@
+<resources>
+    <string name="google_map_api_key">AIzaSyBxPqutlzferTZAXcVgE6TOr5aFik79esk</string>
+    <string name="app_name">Ambulance Emergency Response System</string>
+    <string name="title_activity_user_maps">user_maps</string>
+    <string name="title_activity_maps">Maps</string>
+    <string name="title_activity_dashboard">DashboardActivity</string>
+    <!-- Strings used for fragments for navigation -->
+    <string name="first_fragment_label">First Fragment</string>
+    <string name="second_fragment_label">Second Fragment</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+
+    <string name="hello_first_fragment">Hello first fragment</string>
+    <string name="hello_second_fragment">Hello second fragment. Arg: %1$s</string>
+    <string name="title_activity_main">MainActivity</string>
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="nav_header_subtitle">android.studio@android.com</string>
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="action_settings">Settings</string>
+
+    <string name="menu_home">Home</string>
+    <string name="menu_gallery">Gallery</string>
+    <string name="menu_slideshow">Slideshow</string>
+    <string name="users">Users</string>
+    <string name="admin">Admin</string>
+    <string name="submit">Submit</string>
+    <string name="delete">Delete</string>
+    <string name="title_activity_user_profile_binding">UserProfileBinding</string>
+    <string name="title_activity_user_maps_binding">ActivityUserMapsBinding</string>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="spinner_items">
+        <item>User</item>
+        <item>Admin</item>
+        <!-- Add more items as needed -->
+    </string-array>
+</resources>

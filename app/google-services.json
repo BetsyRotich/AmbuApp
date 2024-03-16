@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "851828099024",
+    "firebase_url": "https://ambuapp-848b5-default-rtdb.firebaseio.com",
+    "project_id": "ambuapp-848b5",
+    "storage_bucket": "ambuapp-848b5.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:851828099024:android:9e5bc8114d8318df569bd5",
+        "android_client_info": {
+          "package_name": "com.example.ambuapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9C6wrooV_Ws65-qkrumCE8Ermi5F5U3E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
