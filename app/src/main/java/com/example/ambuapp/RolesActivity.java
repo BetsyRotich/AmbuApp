@@ -61,7 +61,7 @@ public class RolesActivity extends AppCompatActivity implements View.OnClickList
                                 if (user1 != null) {
 
                                     Log.d(TAG, "onStart: user success");
-                                    startActivity(new Intent(this, ChatActivity.class));
+                                    startActivity(new Intent(this, BaasicActvity.class));
                                     finishAffinity();
                                 }
 

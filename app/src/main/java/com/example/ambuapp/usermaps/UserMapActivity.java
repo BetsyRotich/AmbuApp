@@ -3,12 +3,15 @@ package com.example.ambuapp.usermaps;
 import static com.google.android.gms.location.LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Gravity;
 import android.widget.ImageView;
@@ -16,6 +19,7 @@ import android.widget.ImageView;
 import com.example.ambuapp.UserProfile;
 import com.example.ambuapp.databinding.ActivityUserMapsBinding;
 import com.example.ambuapp.databinding.NavHeaderMainBinding;
+
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -25,6 +29,7 @@ import androidx.fragment.app.FragmentActivity;
 import com.example.ambuapp.R;
 import com.example.ambuapp.RolesActivity;
 import com.example.ambuapp.entities.User;
+import com.example.ambuapp.model.Ambulance;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -35,6 +40,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
@@ -47,16 +53,26 @@ import com.google.android.libraries.places.api.model.Place;
 import com.google.android.libraries.places.api.net.PlacesClient;
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment;
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.maps.DirectionsApi;
+import com.google.maps.DirectionsApiRequest;
 import com.google.maps.GeoApiContext;
+import com.google.maps.PendingResult;
 import com.google.maps.android.PolyUtil;
+import com.google.maps.android.SphericalUtil;
 import com.google.maps.errors.ApiException;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.TravelMode;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -64,6 +80,11 @@ import java.util.concurrent.TimeUnit;
 public class UserMapActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapClickListener, GoogleMap.OnMarkerDragListener {
     private static final int LOCATION_PERMISSION_REQUEST = 5495;
     public static final String TAG = "UserMaps";
+
+    private BottomSheetDialog bottomSheetDialog;
+    private TextView reg, hosp, driver, num;
+
+    private List<Ambulance> ambulanceList;
 
 
     private GoogleMap mMap;
@@ -77,6 +98,9 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
     private Marker startLocationMarker;
     private Polyline polylines;
 
+    private DatabaseReference databaseReference;
+
+    //Todo remove the search bar at the top,not necessary
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +108,47 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
 
         binding = ActivityUserMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        ambulanceList = new ArrayList<>();
+
+        bottomSheetDialog = new BottomSheetDialog(this);
+        bottomSheetDialog.setContentView(R.layout.layout_bottom_sheet);
+        reg = bottomSheetDialog.findViewById(R.id.number_plate);
+        hosp = bottomSheetDialog.findViewById(R.id.hosi);
+        driver = bottomSheetDialog.findViewById(R.id.hosit);
+//        num = bottomSheetDialog.findViewById(R.id.hosita);
+
+        // Initialize ambulance list before setting up the ValueEventListener
+        databaseReference = FirebaseDatabase.getInstance().getReference().child("ambulances");
+        databaseReference.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                ambulanceList.clear();
+                Log.d("AmbulanceActivity", "Data changed, retrieving ambulances...");
+                for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
+                    String ambulanceId = snapshot.getKey();
+                    String availabilityStatus = snapshot.child("availability_status").getValue(String.class);
+                    String registration = snapshot.child("registration").getValue(String.class);
+                    String hospital = snapshot.child("hospital").getValue(String.class);
+                    String driver = snapshot.child("driver").getValue(String.class);
+                    Integer number = snapshot.child("number").getValue(Integer.class);
+                    double latitude = snapshot.child("latitude").getValue(Double.class);
+                    double longitude = snapshot.child("longitude").getValue(Double.class);
+
+                    Ambulance ambulance = new Ambulance(ambulanceId, availabilityStatus, latitude, longitude, number, registration, driver, hospital);
+                    ambulanceList.add(ambulance);
+                }
+                // Update the map with ambulance markers
+                updateMapWithAmbulances();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e("AmbulanceActivity", "Failed to read value.", error.toException());
+            }
+        });
+
+
         // Inflate the nav header layout
         NavHeaderMainBinding navHeaderBinding = NavHeaderMainBinding.inflate(getLayoutInflater());
         // Access the views within the nav header layout
@@ -127,6 +192,8 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
                             currentLocation = location;
 
                             setCameraPosition(currentLocation);
+
+                            drawRoadToNearestAmbulance(currentLocation);
                         }
                     }
                 });
@@ -168,12 +235,11 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
 //                imageView.setPadding(padding, padding, padding, padding);
                 imageView.setBackgroundResource(R.drawable.ripple);
 
-                imageView.setOnClickListener(v->{
+                imageView.setOnClickListener(v -> {
 
                     binding.drawerLayout.openDrawer(Gravity.LEFT);
 
                 });
-
 
 
             }, 1000);
@@ -182,7 +248,6 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
             autocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
                 @Override
                 public void onPlaceSelected(@NonNull Place place) {
-                    // TODO: Get info about the selected place.
                     Log.i(TAG, "Place: " + place.getName() + ", " + place.getId());
                     place.getLatLng();
                     if (destinationMarker != null) {
@@ -197,7 +262,6 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
 
                 @Override
                 public void onError(@NonNull Status status) {
-                    // TODO: Handle the error.
                     Log.i(TAG, "An error occurred: " + status);
                 }
             });
@@ -214,17 +278,68 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
     }
 
 
-
-
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
         mMap.setOnMapClickListener(this);
         mMap.setOnMarkerDragListener(this);
 
-        // Add a marker in Sydney and move the camera
+        try {
+//            boolean success = mMap.setMapStyle(
+//                    MapStyleOptions.loadRawResourceStyle(
+//                            this, R.raw.uber_style));
+//            if (!success) {
+//                Log.e(TAG, "Failed to set custom map style.");
+//            }
+        } catch (Resources.NotFoundException e) {
+            Log.e(TAG, "Resource not found: " + e.getMessage());
+        }
+
+
+        for (Ambulance ambulance : ambulanceList) {
+            LatLng ambulanceLocation = new LatLng(ambulance.getLatitude(), ambulance.getLongitude());
+            mMap.addMarker(new MarkerOptions().
+                    position(ambulanceLocation).
+                    title("Ambulance").
+                    draggable(true)
+                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.tes)
+                    ));
+        }
+
         if (currentLocation != null) {
             setCameraPosition(currentLocation);
+        }
+    }
+
+    private void showAmbulanceDetailsBottomSheet(Ambulance ambulance) {
+        if (ambulance != null && bottomSheetDialog != null) {
+            reg.setText(ambulance.getRegistration());
+            hosp.setText(ambulance.getHospital());
+            driver.setText(ambulance.getDriver());
+
+            //::Todo pass the mobile number and enable redirection to phone call when call button is clicked
+//            num.setText(ambulance.getNumber());
+
+            bottomSheetDialog.show();
+        }
+    }
+
+    private void updateMapWithAmbulances() {
+        if (mMap != null && ambulanceList != null) {
+            mMap.clear();
+            for (Ambulance ambulance : ambulanceList) {
+                LatLng ambulanceLocation = new LatLng(ambulance.getLatitude(), ambulance.getLongitude());
+               //Todo when an ambulance is clicked the bottom sheet should be displayed with the ambulance's details
+                mMap.addMarker(
+                        new MarkerOptions().
+                                position(ambulanceLocation).
+                                title("Ambulance").
+                                draggable(true)
+                                .icon(BitmapDescriptorFactory.fromResource(R.drawable.tes)
+                                )
+                );
+
+            }
         }
     }
 
@@ -235,11 +350,11 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
                         position(yourLocation).
                         title("Your Location").
                         draggable(true)
-                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.marker))
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.marker)
+                        )
         );
 
-        mMap.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition(yourLocation, 13, 0, 0)));
-
+        mMap.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition(yourLocation, 15, 0, 0)));
     }
 
     private void drawPolyline() {
@@ -271,7 +386,7 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
 
         FirebaseFirestore.getInstance().collection("users").document(FirebaseAuth.getInstance().getUid()).get().addOnCompleteListener(task -> {
 
-            if (task.isSuccessful()){
+            if (task.isSuccessful()) {
 
                 User user = task.getResult().toObject(User.class);
                 if (user != null) {
@@ -283,9 +398,6 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
 
         });
     }
-
-
-
 
 
     @Override
@@ -316,5 +428,103 @@ public class UserMapActivity extends FragmentActivity implements OnMapReadyCallb
     public void onMarkerDragStart(@NonNull Marker marker) {
 
     }
+
+    private void drawRoadToNearestAmbulance(Location userLocation) {
+        if (mMap != null && ambulanceList != null && userLocation != null) {
+            LatLng userLatLng = new LatLng(userLocation.getLatitude(), userLocation.getLongitude());
+            Ambulance nearestAmbulance = findNearestAmbulance(userLatLng);
+            if (nearestAmbulance != null) {
+                LatLng ambulanceLatLng = new LatLng(nearestAmbulance.getLatitude(), nearestAmbulance.getLongitude());
+                getDirections(userLatLng, ambulanceLatLng, nearestAmbulance);
+
+                showAmbulanceDetailsBottomSheet(nearestAmbulance);
+            }
+        }
+    }
+
+    private void animateMarkerAlongRoute(Ambulance ambulance, List<LatLng> route) {
+        final Marker marker = mMap.addMarker(new MarkerOptions()
+                .position(new LatLng(ambulance.getLatitude(), ambulance.getLongitude()))
+                .title("Ambulance: " + ambulance.getAmbulanceId())
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.wew)));
+
+        final Handler handler = new Handler();
+        final long[] start = {SystemClock.uptimeMillis()};
+        final long[] duration = {3000};
+
+        handler.post(new Runnable() {
+            int currentIndex = 0;
+
+            @Override
+            public void run() {
+                long elapsed = SystemClock.uptimeMillis() - start[0];
+                float fraction = (float) elapsed / duration[0];
+
+                LatLng currentPosition = interpolate(route.get(currentIndex), route.get(currentIndex + 1), fraction);
+                marker.setPosition(currentPosition);
+
+                if (fraction < 1.0) {
+                    handler.postDelayed(this, 16);
+                } else {
+                    currentIndex++;
+                    if (currentIndex < route.size() - 1) {
+                        start[0] = SystemClock.uptimeMillis();
+                        handler.post(this);
+                    }
+                }
+            }
+        });
+    }
+
+    private LatLng interpolate(LatLng from, LatLng to, float fraction) {
+        double lat = (to.latitude - from.latitude) * fraction + from.latitude;
+        double lng = (to.longitude - from.longitude) * fraction + from.longitude;
+        return new LatLng(lat, lng);
+    }
+
+    private Ambulance findNearestAmbulance(LatLng userLatLng) {
+        Ambulance nearestAmbulance = null;
+        double minDistance = Double.MAX_VALUE;
+        for (Ambulance ambulance : ambulanceList) {
+            LatLng ambulanceLatLng = new LatLng(ambulance.getLatitude(), ambulance.getLongitude());
+            double distance = SphericalUtil.computeDistanceBetween(userLatLng, ambulanceLatLng);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestAmbulance = ambulance;
+            }
+        }
+        return nearestAmbulance;
+    }
+
+    private void getDirections(LatLng origin, LatLng destination, Ambulance nearestAmbulance) {
+        GeoApiContext context = new GeoApiContext.Builder()
+                .apiKey(getString(R.string.google_map_api_key))
+                .build();
+        DirectionsApiRequest request = DirectionsApi.newRequest(context)
+                .origin(new com.google.maps.model.LatLng(origin.latitude, origin.longitude))
+                .destination(new com.google.maps.model.LatLng(destination.latitude, destination.longitude))
+                .mode(TravelMode.DRIVING);
+        request.setCallback(new PendingResult.Callback<DirectionsResult>() {
+            @Override
+            public void onResult(DirectionsResult result) {
+                if (result.routes != null && result.routes.length > 0) {
+                    List<LatLng> decodedPath = PolyUtil.decode(result.routes[0].overviewPolyline.getEncodedPath());
+                    runOnUiThread(() -> {
+                        if (polylines != null)
+                            polylines.remove();
+                        polylines = mMap.addPolyline(new PolylineOptions().addAll(decodedPath));
+                        animateMarkerAlongRoute(nearestAmbulance, decodedPath);
+                    });
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                // Handle failure
+            }
+        });
+    }
+
+
 }
 

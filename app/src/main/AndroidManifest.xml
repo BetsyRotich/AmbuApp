@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.ambuapp" >
+    package="com.example.ambuapp">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"
@@ -11,15 +12,19 @@
         android:label="AmbuApp"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AmbulanceEmergencyResponseSystem" >
+        android:theme="@style/Theme.AmbulanceEmergencyResponseSystem">
+        <activity
+            android:name=".BaasicActvity"
+            android:exported="false" />
+        <activity
+            android:name=".users.AmbulanceActivity"
+            android:exported="true"></activity>
         <activity
             android:name=".UserProfile"
             android:exported="false" />
         <activity
             android:name=".ChatActivity"
-            android:label="Chat Activity">
-        </activity>
-
+            android:label="Chat Activity" />
         <!--
              TODO: Before you run your application, you need a Google Maps API key.
 
@@ -57,7 +62,7 @@
             android:exported="true" />
         <activity
             android:name=".RolesActivity"
-            android:exported="true" >
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

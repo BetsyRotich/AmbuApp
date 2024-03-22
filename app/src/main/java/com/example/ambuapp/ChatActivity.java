@@ -102,7 +102,6 @@ public class ChatActivity extends AppCompatActivity {
             messageInput.setText("");
 
             // Navigate to MapsActivity after sending message
-            startActivity(new Intent(ChatActivity.this, UserMapActivity.class));
         }
     }
 }
